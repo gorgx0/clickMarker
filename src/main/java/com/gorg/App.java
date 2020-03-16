@@ -31,10 +31,15 @@ public class App extends Application {
 
     public static final Color BCKGRND = Color.web("blue", 0.1);
     List<Point2D> points = new ArrayList<>();
+    private GraphicsContext gc;
+    ContextMenuLocal menuLocal ;
+    private Point2D relative;
+    private Counter counter;
 
     @Override
     public void start(Stage primaryStage) throws Exception {
-        Counter counter = new Counter();
+        counter = new Counter();
+        menuLocal = new ContextMenuLocal(counter, this);
         Pane root = new Pane();
         Scene scene = new Scene(root);
         scene.setFill(BCKGRND);
@@ -42,22 +47,8 @@ public class App extends Application {
         Rectangle2D bounds = Screen.getPrimary().getBounds();
         Canvas canvas = new Canvas(bounds.getWidth(),bounds.getHeight());
         root.getChildren().add(canvas);
-        final GraphicsContext gc = canvas.getGraphicsContext2D();
+        gc = canvas.getGraphicsContext2D();
 
-        ContextMenu contextMenu = new ContextMenu();
-        MenuItem resetPointsMenuItem = new MenuItem("Reset points");
-        MenuItem setRelativePointMenuItem = new MenuItem("Set relative point");
-        MenuItem setBoundariesMenuItem = new MenuItem("Set boundaries");
-        resetPointsMenuItem.setOnAction(e->{
-            points.forEach(p -> {
-                gc.clearRect(p.getX()-25, p.getY()-25, 130, 50);
-            });
-            points.clear();
-            counter.reset();
-        });
-        contextMenu.getItems().add(resetPointsMenuItem);
-        contextMenu.getItems().add(setRelativePointMenuItem);
-        contextMenu.getItems().add(setBoundariesMenuItem);
 
         scene.setOnMouseClicked(e -> {
             double sceneX = e.getSceneX();
@@ -65,10 +56,10 @@ public class App extends Application {
             MouseButton button = e.getButton();
             switch (button) {
                 case PRIMARY:
-                    addPoint(counter, gc, sceneX, sceneY);
+                    addPoint(counter, sceneX, sceneY);
                     break;
                 case SECONDARY:
-                    contextMenu.show(primaryStage,sceneX,sceneY);
+                    menuLocal.show(primaryStage,sceneX,sceneY);
                     break;
             }
         });
@@ -80,15 +71,19 @@ public class App extends Application {
         primaryStage.show();
     }
 
-    private void addPoint(Counter counter, GraphicsContext gc, double sceneX, double sceneY) {
+    private void addPoint(Counter counter, double sceneX, double sceneY) {
+        putPoint(String.valueOf(counter.counter++), sceneX, sceneY, Color.RED);
+        points.add(new Point2D(sceneX, sceneY));
+    }
+
+    private void putPoint(String marker, double sceneX, double sceneY, Color color) {
         gc.setLineWidth(2.0);
-        gc.setStroke(Color.RED);
+        gc.setStroke(color);
         gc.strokeOval(sceneX-15, sceneY-15,30, 30);
         gc.setFont(Font.font("Monoid",15));
-        gc.strokeText(String.valueOf(counter.counter++),counter.counter<10?sceneX-5:sceneX-10, sceneY+6);
+        gc.strokeText(String.valueOf(marker),marker.length()==1?sceneX-5:sceneX-10, sceneY+6);
         gc.strokeText(String.valueOf(sceneX), sceneX+20, sceneY-5);
         gc.strokeText(String.valueOf(sceneY), sceneX+20, sceneY+15);
-        points.add(new Point2D(sceneX, sceneY));
     }
 
     public static void main(String[] args) {
@@ -101,5 +96,61 @@ public class App extends Application {
         public void reset() {
             counter = 0;
         }
+    }
+
+    class ContextMenuLocal {
+
+        ContextMenu contextMenu = new ContextMenu();
+        App app ;
+        Counter counter ;
+        private double clickX;
+        private double clickY;
+
+        public ContextMenuLocal(Counter counter, App app) {
+            this.counter = counter;
+            this.app = app;
+            MenuItem resetPointsMenuItem = new MenuItem("Reset points");
+            resetPointsMenuItem.setOnAction(e->{
+                app.clearPoints();
+            });
+            MenuItem setRelativePointMenuItem = new MenuItem("Set relative point");
+            setRelativePointMenuItem.setOnAction(e->{
+                app.setRelative(this.clickX, this.clickY);
+            });
+            MenuItem setBoundariesMenuItem = new MenuItem("Set boundaries");
+            contextMenu.getItems().add(resetPointsMenuItem);
+            contextMenu.getItems().add(setRelativePointMenuItem);
+            contextMenu.getItems().add(setBoundariesMenuItem);
+        }
+
+        public void show(Stage primaryStage, double sceneX, double sceneY) {
+            this.clickX = sceneX;
+            this.clickY = sceneY;
+            contextMenu.show(primaryStage,sceneX,sceneY);
+        }
+    }
+
+    private void clearPoints() {
+        points.forEach(p -> {
+            gc.clearRect(p.getX()-25, p.getY()-25, 130, 50);
+        });
+        points.clear();
+        counter.reset();
+        if(this.relative!=null) {
+            clearRelativePoint();
+        }
+    }
+
+    private void clearRelativePoint() {
+        gc.clearRect(this.relative.getX()-25, this.relative.getY()-25,130,50);
+        this.relative = null;
+    }
+
+    private void setRelative(double clickX, double clickY) {
+        if(this.relative != null) {
+            clearRelativePoint();
+        }
+        putPoint("R", clickX, clickY, Color.GREEN);
+        this.relative = new Point2D(clickX, clickY);
     }
 }
